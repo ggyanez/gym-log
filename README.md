@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Registro de Entrenamientos
 
-## Getting Started
+App para registrar series de gimnasio rápido desde el celular, reemplazando el Google Form. Escribe directo en el Google Sheet a través de un Google Apps Script.
 
-First, run the development server:
+## Setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. Seguí [`apps-script/README.md`](./apps-script/README.md) para conectar el Sheet (una sola vez).
+2. Copiá `.env.local.example` a `.env.local` y pegá la URL del Web App:
+   ```bash
+   cp .env.local.example .env.local
+   ```
+3. Instalá dependencias y corré en local:
+   ```bash
+   npm install
+   npm run dev
+   ```
+4. Abrí http://localhost:3000, ingresá el PIN que configuraste como `APP_TOKEN`.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploy a Vercel
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Subí este repo a GitHub (privado).
+2. En [vercel.com](https://vercel.com), **Add New Project**, importá el repo.
+3. En **Environment Variables**, agregá `NEXT_PUBLIC_APPS_SCRIPT_URL` con la URL del Web App.
+4. Deploy. Listo — la URL de Vercel es la que usás desde el celular (podés agregarla a la pantalla de inicio como si fuera una app).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Estructura
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app/page.tsx` — pantalla principal: elegir ejercicio, cargar serie, ver el registro de hoy.
+- `src/app/manage/page.tsx` — alta/baja/modificación de ejercicios y grupos musculares.
+- `src/lib/api.ts` — cliente que habla con el Apps Script Web App.
+- `apps-script/Code.gs` — backend, vive pegado en el Google Sheet.

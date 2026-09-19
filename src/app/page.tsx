@@ -1,69 +1,346 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCatalog } from "@/lib/CatalogContext";
+import { useAuth } from "@/lib/AuthContext";
+import { call, UnauthorizedError } from "@/lib/api";
+import { normalize } from "@/lib/normalize";
+import type { Ejercicio, RegistroHoy, Ultimo } from "@/lib/types";
+import ExerciseChip from "@/components/ExerciseChip";
+import NumberStepper from "@/components/NumberStepper";
+
+const hoyLegible = new Date().toLocaleDateString("es-AR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+
+export default function Page() {
+  const { catalogo, loading: loadingCatalogo, error: catalogError } = useCatalog();
+  const { logout } = useAuth();
+
+  const [todayLog, setTodayLog] = useState<RegistroHoy[]>([]);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Ejercicio | null>(null);
+  const [reps, setReps] = useState("");
+  const [peso, setPeso] = useState("");
+  const [notas, setNotas] = useState("");
+  const [notasOpen, setNotasOpen] = useState(false);
+  const [ultimo, setUltimo] = useState<Ultimo>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    call<RegistroHoy[]>("getHoy")
+      .then(setTodayLog)
+      .catch((err) => {
+        if (err instanceof UnauthorizedError) logout();
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const countsHoy = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of todayLog) m.set(r.ejercicio, (m.get(r.ejercicio) ?? 0) + 1);
+    return m;
+  }, [todayLog]);
+
+  const recientes = useMemo(() => {
+    const seen = new Set<string>();
+    const list: Ejercicio[] = [];
+    for (const r of todayLog) {
+      if (seen.has(r.ejercicio)) continue;
+      seen.add(r.ejercicio);
+      const ej = catalogo.ejercicios.find((e) => e.nombre === r.ejercicio);
+      if (ej) list.push(ej);
+      if (list.length >= 6) break;
+    }
+    return list;
+  }, [todayLog, catalogo.ejercicios]);
+
+  const grouped = useMemo(() => {
+    const q = normalize(search);
+    const filtered = q
+      ? catalogo.ejercicios.filter(
+          (e) => normalize(e.nombre).includes(q) || normalize(e.grupo).includes(q)
+        )
+      : catalogo.ejercicios;
+
+    const byGroup = new Map<string, Ejercicio[]>();
+    for (const grupo of catalogo.grupos) byGroup.set(grupo, []);
+    for (const e of filtered) {
+      if (!byGroup.has(e.grupo)) byGroup.set(e.grupo, []);
+      byGroup.get(e.grupo)!.push(e);
+    }
+    return Array.from(byGroup.entries()).filter(([, list]) => list.length > 0);
+  }, [catalogo, search]);
+
+  function selectExercise(ej: Ejercicio) {
+    setSelected(ej);
+    setErrorMsg(null);
+    setNotas("");
+    setNotasOpen(false);
+    setReps("");
+    setPeso("");
+    setUltimo(null);
+    call<Ultimo>("getUltimo", { ejercicio: ej.nombre })
+      .then((u) => {
+        setUltimo(u);
+        if (u?.reps != null) setReps(String(u.reps));
+        if (u?.peso != null) setPeso(String(u.peso));
+      })
+      .catch((err) => {
+        if (err instanceof UnauthorizedError) logout();
+      });
+  }
+
+  async function submit() {
+    if (!selected) return;
+    if (!reps) {
+      setErrorMsg("Ingresá las repeticiones");
+      return;
+    }
+    if (!selected.sinPeso && !peso) {
+      setErrorMsg("Ingresá el peso");
+      return;
+    }
+    setSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const data = await call<{ row: number }>("addRegistro", {
+        ejercicio: selected.nombre,
+        reps: Number(reps),
+        peso: selected.sinPeso ? null : Number(peso),
+        notas,
+      });
+      setTodayLog((prev) => [
+        {
+          row: data.row,
+          grupo: selected.grupo,
+          ejercicio: selected.nombre,
+          reps: Number(reps),
+          peso: selected.sinPeso ? "-" : Number(peso),
+          notas,
+        },
+        ...prev,
+      ]);
+      setNotas("");
+      setNotasOpen(false);
+      setToast("Serie registrada ✓");
+      setTimeout(() => setToast(null), 1500);
+    } catch (err) {
+      if (err instanceof UnauthorizedError) logout();
+      else setErrorMsg(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function deleteRow(row: number) {
+    call("deleteRegistro", { row })
+      .then(() => setTodayLog((prev) => prev.filter((r) => r.row !== row)))
+      .catch((err) => {
+        if (err instanceof UnauthorizedError) logout();
+      });
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 px-4 py-3 backdrop-blur">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-base font-semibold capitalize text-slate-100">
+              {hoyLegible}
+            </h1>
+            <p className="text-xs text-slate-500">
+              {todayLog.length > 0
+                ? `${todayLog.length} series registradas hoy`
+                : "Elegí un ejercicio para arrancar"}
+            </p>
+          </div>
+          <Link
+            href="/manage"
+            aria-label="Gestionar ejercicios y grupos"
+            className="rounded-lg p-2 text-xl text-slate-400 active:scale-95"
+          >
+            ⚙️
+          </Link>
+        </div>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar ejercicio..."
+          className="mt-3 w-full rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-slate-100 outline-none focus:border-emerald-500"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+      </header>
+
+      <main
+        className={`flex-1 overflow-y-auto px-4 pt-4 ${
+          selected ? "pb-72" : "pb-8"
+        }`}
+      >
+        {catalogError && (
+          <p className="mb-4 rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">
+            {catalogError}
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+        )}
+
+        {!loadingCatalogo && catalogo.ejercicios.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-sm text-slate-400">
+            Todavía no hay ejercicios cargados.{" "}
+            <Link href="/manage" className="text-emerald-400 underline">
+              Agregá el primero
+            </Link>
+            .
+          </div>
+        )}
+
+        {recientes.length > 0 && !search && (
+          <section className="mb-5">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Recientes de hoy
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {recientes.map((ej) => (
+                <ExerciseChip
+                  key={ej.nombre}
+                  nombre={ej.nombre}
+                  active={selected?.nombre === ej.nombre}
+                  count={countsHoy.get(ej.nombre) ?? 0}
+                  onClick={() => selectExercise(ej)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {grouped.map(([grupo, ejercicios]) => (
+          <section key={grupo} className="mb-5">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {grupo}
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {ejercicios.map((ej) => (
+                <ExerciseChip
+                  key={ej.nombre}
+                  nombre={ej.nombre}
+                  active={selected?.nombre === ej.nombre}
+                  count={countsHoy.get(ej.nombre) ?? 0}
+                  onClick={() => selectExercise(ej)}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+
+        <section className="mt-6 border-t border-slate-800 pt-4">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Series de hoy ({todayLog.length})
+          </h2>
+          {todayLog.length === 0 ? (
+            <p className="text-sm text-slate-500">Todavía no registraste ninguna serie.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {todayLog.map((r) => (
+                <li
+                  key={r.row}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-slate-200">{r.ejercicio}</p>
+                    <p className="text-xs text-slate-500">
+                      {r.reps} reps{r.peso !== "-" ? ` · ${r.peso}kg` : ""}
+                      {r.notas ? ` · ${r.notas}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => deleteRow(r.row)}
+                    aria-label="Borrar serie"
+                    className="shrink-0 px-2 text-slate-500 active:scale-95"
+                  >
+                    🗑
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </main>
+
+      {toast && (
+        <div className="fixed left-1/2 top-4 z-40 -translate-x-1/2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
+          {toast}
+        </div>
+      )}
+
+      {selected && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-slate-900 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3 shadow-2xl">
+          <div className="mb-3 flex items-start justify-between">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-100">
+                {selected.nombre}
+              </p>
+              <p className="text-xs text-slate-500">
+                {selected.grupo}
+                {ultimo &&
+                  ` · última vez: ${ultimo.reps ?? "-"} reps${
+                    ultimo.peso != null ? ` · ${ultimo.peso}kg` : ""
+                  }`}
+              </p>
+            </div>
+            <button
+              onClick={() => setSelected(null)}
+              aria-label="Cerrar"
+              className="shrink-0 px-2 text-lg text-slate-500"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className={`grid gap-3 ${selected.sinPeso ? "grid-cols-1" : "grid-cols-2"}`}>
+            <NumberStepper label="Reps" value={reps} onChange={setReps} step={1} />
+            {!selected.sinPeso && (
+              <NumberStepper
+                label="Peso"
+                value={peso}
+                onChange={setPeso}
+                step={1}
+                decimal
+                suffix="kg"
+              />
+            )}
+          </div>
+
+          {notasOpen ? (
+            <textarea
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
+              placeholder="Nota (opcional)"
+              rows={2}
+              className="mt-3 w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+            />
+          ) : (
+            <button
+              onClick={() => setNotasOpen(true)}
+              className="mt-3 text-xs text-slate-500 underline"
+            >
+              + Agregar nota
+            </button>
+          )}
+
+          {errorMsg && <p className="mt-2 text-sm text-red-400">{errorMsg}</p>}
+
+          <button
+            onClick={submit}
+            disabled={submitting}
+            className="mt-3 w-full rounded-xl bg-emerald-600 py-3.5 text-lg font-semibold text-white transition active:scale-[0.98] disabled:opacity-50"
+          >
+            {submitting ? "Guardando..." : "Registrar serie"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
