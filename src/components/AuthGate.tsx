@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import BottomNav from "@/components/BottomNav";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const { authed, checking, login } = useAuth();
@@ -10,7 +11,13 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   const [submitting, setSubmitting] = useState(false);
 
   if (checking) return null;
-  if (authed) return <>{children}</>;
+  if (authed)
+    return (
+      <>
+        {children}
+        <BottomNav />
+      </>
+    );
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,9 +40,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         onSubmit={handleSubmit}
         className="w-full max-w-xs rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl"
       >
-        <h1 className="mb-1 text-lg font-semibold text-slate-100">
-          Registro de Entrenamientos
-        </h1>
+        <h1 className="mb-1 text-lg font-semibold text-slate-100">Registro de Entrenamientos</h1>
         <p className="mb-5 text-sm text-slate-400">Ingresá tu PIN para continuar.</p>
         <input
           autoFocus

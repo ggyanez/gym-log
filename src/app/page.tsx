@@ -187,13 +187,6 @@ export default function Page() {
                   : "Elegí un ejercicio para arrancar"}
               </p>
             </div>
-            <Link
-              href="/manage"
-              aria-label="Gestionar ejercicios y grupos"
-              className="rounded-lg p-2 text-xl text-slate-400 active:scale-95"
-            >
-              ⚙️
-            </Link>
           </div>
           <input
             value={search}
@@ -205,7 +198,7 @@ export default function Page() {
       </header>
 
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col lg:flex-row lg:gap-8">
-        <main className={`min-w-0 flex-1 px-4 pt-4 lg:pb-8 ${selected ? "pb-80" : "pb-8"}`}>
+        <main className={`min-w-0 flex-1 px-4 pt-4 lg:pb-8 ${selected ? "pb-96" : "pb-24"}`}>
           {catalogError && (
             <div className="mb-4 rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">
               <p>{catalogError}</p>
@@ -316,7 +309,7 @@ export default function Page() {
             )}
 
             {selected && (
-              <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-slate-900 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3 shadow-2xl lg:static lg:z-auto lg:rounded-2xl lg:border lg:p-5 lg:shadow-none">
+              <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-slate-800 bg-slate-900 px-4 pb-4 pt-3 shadow-2xl lg:static lg:bottom-auto lg:z-auto lg:rounded-2xl lg:border lg:p-5 lg:shadow-none">
                 <div className="mb-3 flex items-start justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-100">

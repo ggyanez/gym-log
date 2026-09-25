@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function route(db: ReturnType<typeof getDb>, action: string, payload: Record<string, unknown>) {
+async function route(
+  db: ReturnType<typeof getDb>,
+  action: string,
+  payload: Record<string, unknown>,
+) {
   switch (action) {
     case "verify":
       return { verified: true };
@@ -60,6 +64,12 @@ async function route(db: ReturnType<typeof getDb>, action: string, payload: Reco
       return updateGrupo(db, payload);
     case "deleteGrupo":
       return deleteGrupo(db, String(payload.nombre ?? ""));
+    case "getHistorial":
+      return getHistorial(db, payload);
+    case "getEstadisticas":
+      return getEstadisticas(db, String(payload.periodo ?? "todo"));
+    case "getProgresion":
+      return getProgresion(db, String(payload.ejercicio ?? ""));
     default:
       throw new Error(`Acción desconocida: ${action}`);
   }
@@ -73,7 +83,7 @@ async function getCatalogo(db: ReturnType<typeof getDb>) {
     db.execute(
       `SELECT e.name AS nombre, g.name AS grupo, e.bodyweight AS sinPeso
        FROM exercises e JOIN muscle_groups g ON g.id = e.muscle_group_id
-       ORDER BY e.id`
+       ORDER BY e.id`,
     ),
   ]);
   return {
@@ -175,7 +185,8 @@ async function addRegistro(db: ReturnType<typeof getDb>, payload: Record<string,
   if (!info) throw new Error(`Ejercicio no encontrado en el catálogo: ${ejercicio}`);
 
   const reps = payload.reps;
-  if (reps === undefined || reps === null || reps === "") throw new Error("Faltan las repeticiones");
+  if (reps === undefined || reps === null || reps === "")
+    throw new Error("Faltan las repeticiones");
 
   const peso = info.sinPeso ? null : payload.peso;
   if (!info.sinPeso && (peso === undefined || peso === null || peso === "")) {
@@ -202,7 +213,12 @@ async function addRegistro(db: ReturnType<typeof getDb>, payload: Record<string,
     ],
   });
 
-  return { row: Number((res.rows[0] as Row).id), fecha: nowIso, grupo: info.grupo, sinPeso: info.sinPeso };
+  return {
+    row: Number((res.rows[0] as Row).id),
+    fecha: nowIso,
+    grupo: info.grupo,
+    sinPeso: info.sinPeso,
+  };
 }
 
 async function editRegistro(db: ReturnType<typeof getDb>, payload: Record<string, unknown>) {
@@ -212,7 +228,12 @@ async function editRegistro(db: ReturnType<typeof getDb>, payload: Record<string
     sql: `UPDATE sets SET reps = ?, notes = ?,
           weight = CASE WHEN weight IS NULL THEN NULL ELSE ? END
           WHERE id = ?`,
-    args: [Number(payload.reps), payload.notas ? String(payload.notas) : null, Number(payload.peso), id],
+    args: [
+      Number(payload.reps),
+      payload.notas ? String(payload.notas) : null,
+      Number(payload.peso),
+      id,
+    ],
   });
   return { row: id };
 }
@@ -226,7 +247,10 @@ async function deleteRegistro(db: ReturnType<typeof getDb>, id: number) {
 // ---------- ejercicios (ABM) ----------
 
 async function findGrupoId(db: ReturnType<typeof getDb>, nombre: string) {
-  const res = await db.execute({ sql: "SELECT id FROM muscle_groups WHERE name = ?", args: [nombre] });
+  const res = await db.execute({
+    sql: "SELECT id FROM muscle_groups WHERE name = ?",
+    args: [nombre],
+  });
   return res.rows.length ? Number((res.rows[0] as Row).id) : null;
 }
 
@@ -305,4 +329,137 @@ async function deleteGrupo(db: ReturnType<typeof getDb>, nombre: string) {
   }
   await db.execute({ sql: "DELETE FROM muscle_groups WHERE id = ?", args: [grupoId] });
   return { deleted: nombre };
+}
+
+// ---------- historial ----------
+
+const HISTORIAL_PAGE_SIZE = 30;
+
+async function getHistorial(db: ReturnType<typeof getDb>, payload: Record<string, unknown>) {
+  const fecha = payload.fecha ? String(payload.fecha) : null;
+  const ejercicio = payload.ejercicio ? String(payload.ejercicio) : null;
+  const grupo = payload.grupo ? String(payload.grupo) : null;
+  const offset = Number(payload.offset ?? 0);
+
+  const conditions: string[] = [];
+  const args: (string | number)[] = [];
+  if (fecha) {
+    conditions.push("date(sets.logged_at) = ?");
+    args.push(fecha);
+  }
+  if (ejercicio) {
+    conditions.push("sets.exercise_name = ?");
+    args.push(ejercicio);
+  }
+  if (grupo) {
+    conditions.push("sets.muscle_group_name = ?");
+    args.push(grupo);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const [rows, count] = await Promise.all([
+    db.execute({
+      sql: `SELECT sets.id, sets.session_id, sets.logged_at, sets.exercise_name,
+              sets.muscle_group_name, sets.reps, sets.weight, sets.notes
+            FROM sets
+            ${where}
+            ORDER BY sets.logged_at DESC
+            LIMIT ${HISTORIAL_PAGE_SIZE} OFFSET ${offset}`,
+      args,
+    }),
+    db.execute({ sql: `SELECT COUNT(*) AS n FROM sets ${where}`, args }),
+  ]);
+
+  return {
+    total: Number((count.rows[0] as Row).n),
+    series: rows.rows.map((row) => {
+      const r = row as Row;
+      return {
+        row: Number(r.id),
+        sessionId: Number(r.session_id),
+        fecha: String(r.logged_at),
+        grupo: String(r.muscle_group_name),
+        ejercicio: String(r.exercise_name),
+        reps: Number(r.reps),
+        peso: r.weight === null ? "-" : Number(r.weight),
+        notas: String(r.notes ?? ""),
+      };
+    }),
+  };
+}
+
+// ---------- estadísticas ----------
+
+function periodoDesde(periodo: string): string | null {
+  const now = new Date();
+  if (periodo === "mes") {
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  }
+  if (periodo === "anio") {
+    return new Date(Date.UTC(now.getUTCFullYear(), 0, 1)).toISOString();
+  }
+  return null;
+}
+
+async function getEstadisticas(db: ReturnType<typeof getDb>, periodo: string) {
+  const desde = periodoDesde(periodo);
+  const whereDesde = desde ? "WHERE logged_at >= ?" : "";
+  const args = desde ? [desde] : [];
+
+  const [porGrupo, totales, records] = await Promise.all([
+    db.execute({
+      sql: `SELECT muscle_group_name, COUNT(*) AS cantidad FROM sets ${whereDesde}
+            GROUP BY muscle_group_name ORDER BY cantidad DESC`,
+      args,
+    }),
+    db.execute({
+      sql: `SELECT COUNT(*) AS series, COUNT(DISTINCT session_id) AS sesiones FROM sets ${whereDesde}`,
+      args,
+    }),
+    // Récords personales: siempre históricos (todo el tiempo), sin importar
+    // el período elegido — un "récord" no tiene sentido acotado a un mes.
+    db.execute(
+      `SELECT exercise_name, weight, logged_at FROM (
+         SELECT exercise_name, weight, logged_at,
+                ROW_NUMBER() OVER (
+                  PARTITION BY exercise_name
+                  ORDER BY weight DESC, reps DESC, logged_at DESC
+                ) AS rn
+         FROM sets WHERE weight IS NOT NULL
+       ) WHERE rn = 1
+       ORDER BY exercise_name`,
+    ),
+  ]);
+
+  const t = totales.rows[0] as Row;
+  return {
+    porGrupo: porGrupo.rows.map((row) => {
+      const r = row as Row;
+      return { grupo: String(r.muscle_group_name), cantidad: Number(r.cantidad) };
+    }),
+    totales: { series: Number(t.series), sesiones: Number(t.sesiones) },
+    records: records.rows.map((row) => {
+      const r = row as Row;
+      return {
+        ejercicio: String(r.exercise_name),
+        pesoMax: Number(r.weight),
+        fecha: String(r.logged_at),
+      };
+    }),
+  };
+}
+
+async function getProgresion(db: ReturnType<typeof getDb>, ejercicio: string) {
+  if (!ejercicio) throw new Error("Falta ejercicio");
+  const res = await db.execute({
+    sql: `SELECT session_id, MAX(weight) AS pesoMax, MIN(logged_at) AS fecha
+          FROM sets WHERE exercise_name = ? AND weight IS NOT NULL
+          GROUP BY session_id
+          ORDER BY fecha ASC`,
+    args: [ejercicio],
+  });
+  return res.rows.map((row) => {
+    const r = row as Row;
+    return { fecha: String(r.fecha), pesoMax: Number(r.pesoMax) };
+  });
 }

@@ -32,7 +32,7 @@ export default function ManagePage() {
   }
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-2xl px-4 py-4">
+    <div className="mx-auto min-h-screen w-full max-w-2xl px-4 pb-24 pt-4">
       <div className="mb-5 flex items-center gap-3">
         <Link href="/" className="text-xl text-slate-400" aria-label="Volver">
           ←
@@ -139,7 +139,7 @@ function GruposSection({
                 </button>
               </div>
             </li>
-          )
+          ),
         )}
       </ul>
 
@@ -225,9 +225,7 @@ function EjerciciosSection({
                   <input
                     type="checkbox"
                     checked={editForm.sinPeso}
-                    onChange={(ev) =>
-                      setEditForm((f) => ({ ...f, sinPeso: ev.target.checked }))
-                    }
+                    onChange={(ev) => setEditForm((f) => ({ ...f, sinPeso: ev.target.checked }))}
                   />
                   Sin peso
                 </label>
@@ -284,7 +282,7 @@ function EjerciciosSection({
                 </button>
               </div>
             </li>
-          )
+          ),
         )}
       </ul>
 
