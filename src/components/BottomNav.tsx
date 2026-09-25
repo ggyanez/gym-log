@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   { href: "/", label: "Registrar", icon: "🏋️" },
   { href: "/historial", label: "Historial", icon: "📋" },
-  { href: "/estadisticas", label: "Stats", icon: "📊" },
-  { href: "/manage", label: "Config", icon: "⚙️" },
+  { href: "/estadisticas", label: "Estadísticas", icon: "📊" },
+  { href: "/manage", label: "Catálogo", icon: "⚙️" },
 ];
 
 export default function BottomNav() {
