@@ -20,7 +20,12 @@ const hoyLegible = new Date().toLocaleDateString("es-AR", {
 });
 
 export default function Page() {
-  const { catalogo, loading: loadingCatalogo, error: catalogError } = useCatalog();
+  const {
+    catalogo,
+    loading: loadingCatalogo,
+    error: catalogError,
+    refresh: refreshCatalogo,
+  } = useCatalog();
   const { logout } = useAuth();
 
   const [todayLog, setTodayLog] = useState<RegistroHoy[]>([]);
@@ -213,12 +218,19 @@ export default function Page() {
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col lg:flex-row lg:gap-8">
         <main className={`min-w-0 flex-1 px-4 pt-4 lg:pb-8 ${selected ? "pb-80" : "pb-8"}`}>
           {catalogError && (
-            <p className="mb-4 rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">
-              {catalogError}
-            </p>
+            <div className="mb-4 rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">
+              <p>{catalogError}</p>
+              <button onClick={() => refreshCatalogo()} className="mt-1 underline">
+                Reintentar
+              </button>
+            </div>
           )}
 
-          {!loadingCatalogo && catalogo.ejercicios.length === 0 && (
+          {loadingCatalogo && catalogo.ejercicios.length === 0 && !catalogError && (
+            <p className="text-sm text-slate-500">Cargando ejercicios...</p>
+          )}
+
+          {!loadingCatalogo && !catalogError && catalogo.ejercicios.length === 0 && (
             <div className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-sm text-slate-400">
               Todavía no hay ejercicios cargados.{" "}
               <Link href="/manage" className="text-emerald-400 underline">

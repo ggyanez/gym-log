@@ -54,15 +54,25 @@ async function callOnce<T>(action: string, payload: Record<string, unknown>): Pr
   // Content-Type text/plain avoids a CORS preflight (OPTIONS) request,
   // which Apps Script Web Apps don't handle. The script still parses the
   // body as JSON regardless of the declared content type.
+  //
+  // A hard timeout matters here specifically: Apps Script's redirect-based
+  // response delivery can stall the connection entirely (not just 404) —
+  // without this, a stuck request leaves the UI "loading" forever with no
+  // error and no way out.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
   let res: Response;
   try {
     res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ token, action, payload }),
+      signal: controller.signal,
     });
   } catch {
     throw new ApiError("No se pudo conectar. Probá de nuevo.", true);
+  } finally {
+    clearTimeout(timeout);
   }
 
   if (!res.ok) {
