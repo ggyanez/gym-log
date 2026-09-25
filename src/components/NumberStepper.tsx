@@ -6,7 +6,6 @@ type Props = {
   onChange: (value: string) => void;
   step?: number;
   decimal?: boolean;
-  suffix?: string;
 };
 
 export default function NumberStepper({
@@ -15,7 +14,6 @@ export default function NumberStepper({
   onChange,
   step = 1,
   decimal = false,
-  suffix,
 }: Props) {
   function bump(delta: number) {
     const current = parseFloat(value || "0") || 0;
@@ -43,11 +41,6 @@ export default function NumberStepper({
             onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ""))}
             className="w-full rounded-xl border border-slate-700 bg-slate-800 py-3 text-center text-xl font-semibold text-slate-100 outline-none focus:border-emerald-500"
           />
-          {suffix && (
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-              {suffix}
-            </span>
-          )}
         </div>
         <button
           type="button"

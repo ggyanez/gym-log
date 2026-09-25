@@ -32,7 +32,7 @@ export default function ManagePage() {
   }
 
   return (
-    <div className="min-h-screen px-4 py-4">
+    <div className="mx-auto min-h-screen w-full max-w-2xl px-4 py-4">
       <div className="mb-5 flex items-center gap-3">
         <Link href="/" className="text-xl text-slate-400" aria-label="Volver">
           ←
