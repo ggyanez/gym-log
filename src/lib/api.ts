@@ -1,6 +1,8 @@
 import { getToken } from "./auth";
 
-const API_URL = process.env.NEXT_PUBLIC_APPS_SCRIPT_URL ?? "";
+// Same-origin Next.js API route — no external service, no CORS, no redirect
+// hop. Talks directly to Turso server-side (see src/app/api/gym/route.ts).
+const API_URL = "/api/gym";
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -17,12 +19,10 @@ export class ApiError extends Error {
   }
 }
 
-// Apps Script's redirect-based response delivery occasionally 404s or drops
-// the connection for reasons unrelated to the request itself (its signed
-// redirect URL expiring under latency, a transient Google-side hiccup).
-// Retrying is only safe for actions that are pure reads or idempotent
-// writes — never for ones that could duplicate or misfire (addRegistro,
-// deleteRegistro), which is why this is an allowlist, not a default.
+// A dropped mobile connection can still make a request fail after it
+// reached the server. Retrying is only safe for actions that are pure reads
+// or idempotent writes — never for ones that could duplicate or misfire
+// (addRegistro, deleteRegistro), which is why this is an allowlist.
 const SAFE_TO_RETRY = new Set([
   "verify",
   "getCatalogo",
@@ -33,10 +33,6 @@ const SAFE_TO_RETRY = new Set([
 ]);
 
 async function call<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
-  if (!API_URL) {
-    throw new ApiError("Falta configurar NEXT_PUBLIC_APPS_SCRIPT_URL en las variables de entorno.");
-  }
-
   try {
     return await callOnce<T>(action, payload);
   } catch (err) {
@@ -51,21 +47,15 @@ async function call<T>(action: string, payload: Record<string, unknown> = {}): P
 async function callOnce<T>(action: string, payload: Record<string, unknown>): Promise<T> {
   const token = getToken();
 
-  // Content-Type text/plain avoids a CORS preflight (OPTIONS) request,
-  // which Apps Script Web Apps don't handle. The script still parses the
-  // body as JSON regardless of the declared content type.
-  //
-  // A hard timeout matters here specifically: Apps Script's redirect-based
-  // response delivery can stall the connection entirely (not just 404) —
-  // without this, a stuck request leaves the UI "loading" forever with no
-  // error and no way out.
+  // A hard timeout keeps a dropped connection from leaving the UI "loading"
+  // forever with no error and no way out.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
   let res: Response;
   try {
     res = await fetch(API_URL, {
       method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, action, payload }),
       signal: controller.signal,
     });

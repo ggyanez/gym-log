@@ -10,9 +10,6 @@ import type { Ejercicio, RegistroHoy, Ultimo } from "@/lib/types";
 import ExerciseChip from "@/components/ExerciseChip";
 import NumberStepper from "@/components/NumberStepper";
 
-const PLANILLA_URL =
-  "https://docs.google.com/spreadsheets/d/16kNOXXGa3DcAREFZiJtHUCmIHRtnXybojoBiq9TDa0Q";
-
 const hoyLegible = new Date().toLocaleDateString("es-AR", {
   weekday: "long",
   day: "numeric",
@@ -189,14 +186,6 @@ export default function Page() {
                   ? `${todayLog.length} series registradas hoy`
                   : "Elegí un ejercicio para arrancar"}
               </p>
-              <a
-                href={PLANILLA_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-0.5 inline-block text-xs text-emerald-400 underline underline-offset-2"
-              >
-                Abrir planilla ↗
-              </a>
             </div>
             <Link
               href="/manage"
