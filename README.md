@@ -1,6 +1,24 @@
 # Registro de Entrenamientos
 
-App para registrar series de gimnasio rápido desde el celular. Backend propio en Next.js (rutas API) que habla directo con una base SQLite en Turso — sin dependencias externas lentas.
+App mobile-first para registrar series de gimnasio en el momento, sin fricción — pensada para usarse con una mano, entre serie y serie.
+
+Nació para reemplazar un Google Form que escribía a un Google Sheet: funcionaba, pero era incómodo y lento de completar en medio de un entrenamiento. La primera versión de esta app mantuvo el Sheet como backend (vía Google Apps Script), lo cual resolvió lo incómodo pero no lo lento — cada acción tardaba varios segundos, a veces más, por la arquitectura de redirección de Apps Script. Terminó migrada a una base de datos propia (Turso/libSQL) con rutas API en el mismo Next.js, bajando esa latencia de segundos a milisegundos.
+
+## Funcionalidades
+
+- **Registrar** — elegir ejercicio por chips agrupados por grupo muscular (con búsqueda y "recientes de hoy" para no perder tiempo buscando), cargar reps y peso con steppers táctiles, precargados con la última serie de ese ejercicio.
+- **Historial** — series pasadas filtrables por fecha, ejercicio o grupo muscular, agrupadas por sesión.
+- **Estadísticas** — series por grupo muscular, récords personales (peso máximo por ejercicio y cuándo se logró), progresión de peso en el tiempo por ejercicio, con selector de período (mes / año / todo).
+- **Catálogo** — alta, baja y modificación de ejercicios y grupos musculares.
+- **Backup automático** — export diario a Google Sheets vía un Apps Script con disparador programado; ver [`backup-apps-script/`](./backup-apps-script). Sirve como respaldo y como forma simple de que un asistente con conector de Google Drive (Claude, ChatGPT) lea los datos sin acceso directo a la base.
+
+Queda detrás de un PIN compartido simple — suficiente para uso personal en un solo dispositivo, pero sin rate limiting ni multiusuario. No es el modelo de auth que usarías si esto sirviera a más de una persona.
+
+## Stack
+
+- [Next.js](https://nextjs.org) (App Router) + TypeScript + Tailwind CSS
+- [Turso](https://turso.tech) (libSQL / SQLite) como base de datos, sin ORM — rutas API propias hablándole directo
+- Deploy en [Vercel](https://vercel.com)
 
 ## Setup
 
@@ -23,6 +41,8 @@ App para registrar series de gimnasio rápido desde el celular. Backend propio e
    ```
 5. Abrí http://localhost:3000, ingresá tu `APP_PIN`.
 
+Arrancás sin ejercicios cargados — se agregan desde la sección Catálogo.
+
 ## Deploy a Vercel
 
 1. Subí este repo a GitHub.
@@ -32,14 +52,25 @@ App para registrar series de gimnasio rápido desde el celular. Backend propio e
 
 ## Esquema de datos
 
-Ver [`db/schema.sql`](./db/schema.sql). Cuatro tablas: `muscle_groups`, `exercises` (catálogo, editable desde `/manage`), `sessions` (una por visita al gym — arranca una nueva si pasaron más de 3hs sin cargar nada) y `sets` (cada serie, con una copia congelada del nombre del ejercicio/grupo al momento de cargarla, para que renombrar o borrar algo del catálogo no reescriba el historial).
+Ver [`db/schema.sql`](./db/schema.sql). Cuatro tablas:
+
+- `muscle_groups`, `exercises` — el catálogo, editable desde la sección Catálogo.
+- `sessions` — una por visita al gym. Una serie nueva se suma a la sesión más reciente si pasaron menos de 3 horas desde la anterior; si no, arranca una sesión nueva. Así dos visitas el mismo día no se mezclan, y una sesión que cruza la medianoche no se corta en dos.
+- `sets` — cada serie, con una copia congelada del nombre del ejercicio y su grupo al momento de cargarla. Renombrar o borrar algo del catálogo después no reescribe el historial.
 
 `db/migrate.mjs` fue el script de migración única desde el Google Sheet original — queda como referencia, no se vuelve a correr.
 
 ## Estructura
 
-- `src/app/page.tsx` — pantalla principal: elegir ejercicio, cargar serie, ver la sesión actual.
-- `src/app/manage/page.tsx` — alta/baja/modificación de ejercicios y grupos musculares.
-- `src/lib/api.ts` — cliente que habla con `/api/gym`.
-- `src/app/api/gym/route.ts` — backend: valida el PIN y lee/escribe en Turso.
-- `src/lib/db.ts` — cliente de Turso (server-only).
+```
+src/app/page.tsx                 # Registrar
+src/app/historial/page.tsx       # Historial
+src/app/estadisticas/page.tsx    # Estadísticas
+src/app/manage/page.tsx          # Catálogo
+src/app/api/gym/route.ts         # backend de la app: valida el PIN, lee/escribe en Turso
+src/app/api/export/route.ts      # dump de solo lectura, usado por el backup
+src/lib/api.ts                   # cliente que habla con /api/gym
+src/lib/db.ts                    # cliente de Turso (server-only)
+src/components/BottomNav.tsx     # navegación de las 4 secciones
+backup-apps-script/              # Apps Script del backup diario a Sheets
+```
