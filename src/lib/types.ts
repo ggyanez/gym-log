@@ -45,4 +45,12 @@ export type Estadisticas = {
 
 export type ProgresionPunto = { fecha: string; pesoMax: number };
 
+export type RutinaDia = {
+  dia: string;
+  sesion: string;
+  ejercicios: string;
+  descansos: string;
+  cargado: boolean;
+};
+
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };

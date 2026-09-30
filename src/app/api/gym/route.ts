@@ -70,6 +70,12 @@ async function route(
       return getEstadisticas(db, String(payload.periodo ?? "todo"));
     case "getProgresion":
       return getProgresion(db, String(payload.ejercicio ?? ""));
+    case "getRutina":
+      return getRutina(db);
+    case "upsertRutina":
+      return upsertRutina(db, payload);
+    case "deleteRutina":
+      return deleteRutina(db, String(payload.dia ?? ""));
     default:
       throw new Error(`Acción desconocida: ${action}`);
   }
@@ -462,4 +468,52 @@ async function getProgresion(db: ReturnType<typeof getDb>, ejercicio: string) {
     const r = row as Row;
     return { fecha: String(r.fecha), pesoMax: Number(r.pesoMax) };
   });
+}
+
+// ---------- rutina ----------
+
+const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+async function getRutina(db: ReturnType<typeof getDb>) {
+  const res = await db.execute("SELECT dia, sesion, ejercicios, descansos FROM routine");
+  const porDia = new Map(
+    res.rows.map((row) => {
+      const r = row as Row;
+      return [
+        String(r.dia),
+        {
+          sesion: String(r.sesion),
+          ejercicios: String(r.ejercicios),
+          descansos: String(r.descansos),
+        },
+      ];
+    }),
+  );
+  return DIAS.map((dia) => ({
+    dia,
+    sesion: porDia.get(dia)?.sesion ?? "",
+    ejercicios: porDia.get(dia)?.ejercicios ?? "",
+    descansos: porDia.get(dia)?.descansos ?? "",
+    cargado: porDia.has(dia),
+  }));
+}
+
+async function upsertRutina(db: ReturnType<typeof getDb>, payload: Record<string, unknown>) {
+  const dia = String(payload.dia ?? "");
+  if (!DIAS.includes(dia)) throw new Error("Día inválido");
+  const sesion = String(payload.sesion ?? "");
+  const ejercicios = String(payload.ejercicios ?? "");
+  const descansos = String(payload.descansos ?? "");
+  await db.execute({
+    sql: `INSERT INTO routine (dia, sesion, ejercicios, descansos) VALUES (?, ?, ?, ?)
+          ON CONFLICT(dia) DO UPDATE SET sesion = excluded.sesion,
+            ejercicios = excluded.ejercicios, descansos = excluded.descansos`,
+    args: [dia, sesion, ejercicios, descansos],
+  });
+  return { dia };
+}
+
+async function deleteRutina(db: ReturnType<typeof getDb>, dia: string) {
+  await db.execute({ sql: "DELETE FROM routine WHERE dia = ?", args: [dia] });
+  return { deleted: dia };
 }
