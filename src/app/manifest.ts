@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Registro de Entrenamientos",
+    name: "Gym Log",
     short_name: "Gym Log",
     description: "Registrá tus series de gimnasio, rápido.",
     start_url: "/",

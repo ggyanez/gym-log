@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Registro de Entrenamientos",
+  title: "Gym Log",
   description: "Registrá tus series de gimnasio, rápido.",
 };
 

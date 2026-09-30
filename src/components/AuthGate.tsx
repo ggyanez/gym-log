@@ -40,7 +40,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         onSubmit={handleSubmit}
         className="w-full max-w-xs rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl"
       >
-        <h1 className="mb-1 text-lg font-semibold text-slate-100">Registro de Entrenamientos</h1>
+        <h1 className="mb-1 text-lg font-semibold text-slate-100">Gym Log</h1>
         <p className="mb-5 text-sm text-slate-400">Ingresá tu PIN para continuar.</p>
         <input
           autoFocus
