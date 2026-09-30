@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useCatalog } from "@/lib/CatalogContext";
 import { useAuth } from "@/lib/AuthContext";
 import { call, UnauthorizedError } from "@/lib/api";
+import { useScrollRestore } from "@/lib/useScrollRestore";
 import type { Historial, RegistroHistorial } from "@/lib/types";
 
 function formatFecha(iso: string) {
@@ -26,7 +27,10 @@ export default function HistorialPage() {
   const [series, setSeries] = useState<RegistroHistorial[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useScrollRestore("historial", loadedOnce);
 
   function load(offset: number, append: boolean) {
     setLoading(true);
@@ -45,7 +49,10 @@ export default function HistorialPage() {
         if (err instanceof UnauthorizedError) logout();
         else setErrorMsg(err instanceof Error ? err.message : "Error al cargar");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setLoadedOnce(true);
+      });
   }
 
   useEffect(() => {

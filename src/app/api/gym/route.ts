@@ -72,10 +72,14 @@ async function route(
       return getProgresion(db, String(payload.ejercicio ?? ""));
     case "getRutina":
       return getRutina(db);
-    case "upsertRutina":
-      return upsertRutina(db, payload);
+    case "addRutina":
+      return addRutina(db, payload);
+    case "updateRutina":
+      return updateRutina(db, payload);
     case "deleteRutina":
-      return deleteRutina(db, String(payload.dia ?? ""));
+      return deleteRutina(db, Number(payload.id));
+    case "moverRutina":
+      return moverRutina(db, payload);
     default:
       throw new Error(`Acción desconocida: ${action}`);
   }
@@ -471,49 +475,83 @@ async function getProgresion(db: ReturnType<typeof getDb>, ejercicio: string) {
 }
 
 // ---------- rutina ----------
-
-const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+// Slots de sesión ordenados, no atados a un día — "Sesión N" es la posición
+// (1-based) en la lista ordenada por `orden`, no un valor guardado.
 
 async function getRutina(db: ReturnType<typeof getDb>) {
-  const res = await db.execute("SELECT dia, sesion, ejercicios, descansos FROM routine");
-  const porDia = new Map(
-    res.rows.map((row) => {
-      const r = row as Row;
-      return [
-        String(r.dia),
-        {
-          sesion: String(r.sesion),
-          ejercicios: String(r.ejercicios),
-          descansos: String(r.descansos),
-        },
-      ];
-    }),
+  const res = await db.execute(
+    "SELECT id, sesion, ejercicios, descansos FROM routine ORDER BY orden",
   );
-  return DIAS.map((dia) => ({
-    dia,
-    sesion: porDia.get(dia)?.sesion ?? "",
-    ejercicios: porDia.get(dia)?.ejercicios ?? "",
-    descansos: porDia.get(dia)?.descansos ?? "",
-    cargado: porDia.has(dia),
-  }));
-}
-
-async function upsertRutina(db: ReturnType<typeof getDb>, payload: Record<string, unknown>) {
-  const dia = String(payload.dia ?? "");
-  if (!DIAS.includes(dia)) throw new Error("Día inválido");
-  const sesion = String(payload.sesion ?? "");
-  const ejercicios = String(payload.ejercicios ?? "");
-  const descansos = String(payload.descansos ?? "");
-  await db.execute({
-    sql: `INSERT INTO routine (dia, sesion, ejercicios, descansos) VALUES (?, ?, ?, ?)
-          ON CONFLICT(dia) DO UPDATE SET sesion = excluded.sesion,
-            ejercicios = excluded.ejercicios, descansos = excluded.descansos`,
-    args: [dia, sesion, ejercicios, descansos],
+  return res.rows.map((row, i) => {
+    const r = row as Row;
+    return {
+      id: Number(r.id),
+      numero: i + 1,
+      sesion: String(r.sesion),
+      ejercicios: String(r.ejercicios),
+      descansos: String(r.descansos),
+    };
   });
-  return { dia };
 }
 
-async function deleteRutina(db: ReturnType<typeof getDb>, dia: string) {
-  await db.execute({ sql: "DELETE FROM routine WHERE dia = ?", args: [dia] });
-  return { deleted: dia };
+async function addRutina(db: ReturnType<typeof getDb>, payload: Record<string, unknown>) {
+  const max = await db.execute("SELECT COALESCE(MAX(orden), 0) AS max FROM routine");
+  const orden = Number((max.rows[0] as Row).max) + 1;
+  const res = await db.execute({
+    sql: `INSERT INTO routine (orden, sesion, ejercicios, descansos) VALUES (?, ?, ?, ?)
+          RETURNING id`,
+    args: [
+      orden,
+      String(payload.sesion ?? ""),
+      String(payload.ejercicios ?? ""),
+      String(payload.descansos ?? ""),
+    ],
+  });
+  return { id: Number((res.rows[0] as Row).id) };
+}
+
+async function updateRutina(db: ReturnType<typeof getDb>, payload: Record<string, unknown>) {
+  const id = Number(payload.id);
+  if (!id) throw new Error("Id inválido");
+  const res = await db.execute({
+    sql: "UPDATE routine SET sesion = ?, ejercicios = ?, descansos = ? WHERE id = ?",
+    args: [
+      String(payload.sesion ?? ""),
+      String(payload.ejercicios ?? ""),
+      String(payload.descansos ?? ""),
+      id,
+    ],
+  });
+  if (res.rowsAffected === 0) throw new Error("Sesión no encontrada");
+  return { id };
+}
+
+async function deleteRutina(db: ReturnType<typeof getDb>, id: number) {
+  if (!id) throw new Error("Id inválido");
+  await db.execute({ sql: "DELETE FROM routine WHERE id = ?", args: [id] });
+  return { deleted: id };
+}
+
+async function moverRutina(db: ReturnType<typeof getDb>, payload: Record<string, unknown>) {
+  const id = Number(payload.id);
+  const direccion = payload.direccion === "up" ? "up" : "down";
+  const res = await db.execute("SELECT id, orden FROM routine ORDER BY orden");
+  const rows = res.rows.map((row) => {
+    const r = row as Row;
+    return { id: Number(r.id), orden: Number(r.orden) };
+  });
+  const i = rows.findIndex((r) => r.id === id);
+  if (i === -1) throw new Error("Sesión no encontrada");
+  const j = direccion === "up" ? i - 1 : i + 1;
+  if (j < 0 || j >= rows.length) return { moved: false };
+
+  await db.execute({
+    sql: "UPDATE routine SET orden = ? WHERE id = ?",
+    args: [rows[j].orden, rows[i].id],
+  });
+  await db.execute({
+    sql: "UPDATE routine SET orden = ? WHERE id = ?",
+    args: [rows[i].orden, rows[j].id],
+  });
+  return { moved: true };
 }
