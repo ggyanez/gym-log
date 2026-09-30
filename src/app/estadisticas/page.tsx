@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useCatalog } from "@/lib/CatalogContext";
 import { useAuth } from "@/lib/AuthContext";
 import { call, UnauthorizedError } from "@/lib/api";
+import { useScrollRestore } from "@/lib/useScrollRestore";
 import type { Estadisticas, Periodo, ProgresionPunto } from "@/lib/types";
 
 const PERIODOS: { value: Periodo; label: string }[] = [
@@ -19,6 +20,8 @@ export default function EstadisticasPage() {
   const [periodo, setPeriodo] = useState<Periodo>("mes");
   const [stats, setStats] = useState<Estadisticas | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useScrollRestore("estadisticas", stats !== null);
 
   useEffect(() => {
     // Fetch-on-period-change; resets are synchronous, the fetch itself isn't.

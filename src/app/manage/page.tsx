@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useCatalog } from "@/lib/CatalogContext";
+import { useScrollRestore } from "@/lib/useScrollRestore";
 
 export default function ManagePage() {
   const {
@@ -15,6 +16,8 @@ export default function ManagePage() {
     updateGrupo,
     deleteGrupo,
   } = useCatalog();
+
+  useScrollRestore("manage", !loading);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

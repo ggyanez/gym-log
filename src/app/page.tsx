@@ -6,6 +6,7 @@ import { useCatalog } from "@/lib/CatalogContext";
 import { useAuth } from "@/lib/AuthContext";
 import { call, UnauthorizedError } from "@/lib/api";
 import { normalize } from "@/lib/normalize";
+import { useScrollRestore } from "@/lib/useScrollRestore";
 import type { Ejercicio, RegistroHoy, Ultimo } from "@/lib/types";
 import ExerciseChip from "@/components/ExerciseChip";
 import NumberStepper from "@/components/NumberStepper";
@@ -24,6 +25,8 @@ export default function Page() {
     refresh: refreshCatalogo,
   } = useCatalog();
   const { logout } = useAuth();
+
+  useScrollRestore("registrar", !loadingCatalogo);
 
   const [todayLog, setTodayLog] = useState<RegistroHoy[]>([]);
   const [search, setSearch] = useState("");
