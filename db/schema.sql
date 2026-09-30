@@ -38,16 +38,19 @@ CREATE INDEX idx_sets_logged_at ON sets(logged_at);
 
 -- Rutina: un ayuda-memoria de edición manual, sin relación con
 -- exercises/sets. Slots de sesión ordenados (no atados a un día de la
--- semana — "Sesión 1", "Sesión 2"... es la posición en `orden`, no un
--- nombre guardado). sesion/ejercicios/descansos son texto libre (preservan
--- los saltos de línea tal como se cargan) a propósito — es un espejo
--- simple de una tabla de Notion, no un modelo relacional de rutinas.
+-- semana — la posición en `orden` define el orden de la lista, no hay
+-- número mostrado en la UI). sesion/ejercicios/descansos/notas son texto
+-- libre con un formateo mínimo en markup propio (**negrita**, _cursiva_,
+-- ++subrayado++), no HTML — preservan los saltos de línea tal como se
+-- cargan a propósito, es un espejo simple de una tabla de Notion, no un
+-- modelo relacional de rutinas.
 CREATE TABLE routine (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   orden INTEGER NOT NULL,
   sesion TEXT NOT NULL DEFAULT '',
   ejercicios TEXT NOT NULL DEFAULT '',
-  descansos TEXT NOT NULL DEFAULT ''
+  descansos TEXT NOT NULL DEFAULT '',
+  notas TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX idx_routine_orden ON routine(orden);

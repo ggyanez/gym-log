@@ -47,10 +47,10 @@ export type ProgresionPunto = { fecha: string; pesoMax: number };
 
 export type RutinaSesion = {
   id: number;
-  numero: number;
   sesion: string;
   ejercicios: string;
   descansos: string;
+  notas: string;
 };
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };

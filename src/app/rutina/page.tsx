@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { call, UnauthorizedError } from "@/lib/api";
 import { useScrollRestore } from "@/lib/useScrollRestore";
+import { renderFormatted } from "@/lib/textFormat";
+import FormattableTextarea from "@/components/FormattableTextarea";
 import type { RutinaSesion } from "@/lib/types";
+
+type RutinaFormValue = { sesion: string; ejercicios: string; descansos: string; notas: string };
 
 export default function RutinaPage() {
   const { logout } = useAuth();
@@ -29,9 +33,9 @@ export default function RutinaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function guardarNueva(sesion: string, ejercicios: string, descansos: string) {
+  async function guardarNueva(sesion: RutinaFormValue) {
     try {
-      await call("addRutina", { sesion, ejercicios, descansos });
+      await call("addRutina", sesion);
       setEditando(null);
       load();
     } catch (err) {
@@ -40,9 +44,9 @@ export default function RutinaPage() {
     }
   }
 
-  async function guardarEdicion(id: number, sesion: string, ejercicios: string, descansos: string) {
+  async function guardarEdicion(id: number, sesion: RutinaFormValue) {
     try {
-      await call("updateRutina", { id, sesion, ejercicios, descansos });
+      await call("updateRutina", { id, ...sesion });
       setEditando(null);
       load();
     } catch (err) {
@@ -91,13 +95,8 @@ export default function RutinaPage() {
           editando === s.id ? (
             <SesionForm
               key={s.id}
-              numero={s.numero}
-              sesion={s.sesion}
-              ejercicios={s.ejercicios}
-              descansos={s.descansos}
-              onGuardar={(sesion, ejercicios, descansos) =>
-                guardarEdicion(s.id, sesion, ejercicios, descansos)
-              }
+              inicial={s}
+              onGuardar={(valores) => guardarEdicion(s.id, valores)}
               onCancelar={() => setEditando(null)}
             />
           ) : (
@@ -115,10 +114,7 @@ export default function RutinaPage() {
 
         {editando === "nueva" && (
           <SesionForm
-            numero={(sesiones?.length ?? 0) + 1}
-            sesion=""
-            ejercicios=""
-            descansos=""
+            inicial={{ sesion: "", ejercicios: "", descansos: "", notas: "" }}
             onGuardar={guardarNueva}
             onCancelar={() => setEditando(null)}
           />
@@ -133,6 +129,17 @@ export default function RutinaPage() {
           + Agregar sesión
         </button>
       )}
+    </div>
+  );
+}
+
+function Bloque({ titulo, texto }: { titulo: string; texto: string }) {
+  return (
+    <div>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{titulo}</p>
+      <p className="whitespace-pre-wrap text-sm text-slate-300">
+        {texto ? renderFormatted(texto) : "—"}
+      </p>
     </div>
   );
 }
@@ -155,10 +162,9 @@ function SesionCard({
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
       <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-semibold text-slate-100">Sesión {sesion.numero}</p>
-          {sesion.sesion && <p className="text-sm text-slate-400">{sesion.sesion}</p>}
-        </div>
+        <p className="min-w-0 truncate font-semibold text-slate-100">
+          {sesion.sesion || <span className="italic text-slate-500">Sin nombre</span>}
+        </p>
         <div className="flex shrink-0 items-center gap-3 text-sm">
           <button
             onClick={() => onMover("up")}
@@ -186,68 +192,62 @@ function SesionCard({
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Ejercicios
-          </p>
-          <p className="whitespace-pre-wrap text-sm text-slate-300">{sesion.ejercicios || "—"}</p>
-        </div>
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Descansos
-          </p>
-          <p className="whitespace-pre-wrap text-sm text-slate-300">{sesion.descansos || "—"}</p>
-        </div>
+        <Bloque titulo="Ejercicios" texto={sesion.ejercicios} />
+        <Bloque titulo="Descansos" texto={sesion.descansos} />
       </div>
+      {sesion.notas && (
+        <div className="mt-3">
+          <Bloque titulo="Notas" texto={sesion.notas} />
+        </div>
+      )}
     </div>
   );
 }
 
 function SesionForm({
-  numero,
-  sesion,
-  ejercicios,
-  descansos,
+  inicial,
   onGuardar,
   onCancelar,
 }: {
-  numero: number;
-  sesion: string;
-  ejercicios: string;
-  descansos: string;
-  onGuardar: (sesion: string, ejercicios: string, descansos: string) => void;
+  inicial: RutinaFormValue;
+  onGuardar: (valores: RutinaFormValue) => void;
   onCancelar: () => void;
 }) {
-  const [s, setS] = useState(sesion);
-  const [e, setE] = useState(ejercicios);
-  const [d, setD] = useState(descansos);
+  const [sesion, setSesion] = useState(inicial.sesion);
+  const [ejercicios, setEjercicios] = useState(inicial.ejercicios);
+  const [descansos, setDescansos] = useState(inicial.descansos);
+  const [notas, setNotas] = useState(inicial.notas);
 
   return (
     <div className="rounded-xl border border-emerald-700 bg-slate-900 p-3">
-      <p className="mb-2 font-semibold text-slate-100">Sesión {numero}</p>
       <input
-        value={s}
-        onChange={(ev) => setS(ev.target.value)}
+        value={sesion}
+        onChange={(ev) => setSesion(ev.target.value)}
         placeholder="Nombre (ej: 🦵 LEGS)"
-        className="mb-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
-      />
-      <textarea
-        value={e}
-        onChange={(ev) => setE(ev.target.value)}
-        placeholder="Ejercicios..."
-        rows={6}
-        className="mb-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
-      />
-      <textarea
-        value={d}
-        onChange={(ev) => setD(ev.target.value)}
-        placeholder="Descansos..."
-        rows={4}
         className="mb-3 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
       />
+      <div className="mb-3">
+        <FormattableTextarea
+          value={ejercicios}
+          onChange={setEjercicios}
+          placeholder="Ejercicios..."
+          rows={6}
+        />
+      </div>
+      <div className="mb-3">
+        <FormattableTextarea
+          value={descansos}
+          onChange={setDescansos}
+          placeholder="Descansos..."
+          rows={4}
+        />
+      </div>
+      <div className="mb-3">
+        <FormattableTextarea value={notas} onChange={setNotas} placeholder="Notas..." rows={3} />
+      </div>
       <div className="flex gap-3">
         <button
-          onClick={() => onGuardar(s, e, d)}
+          onClick={() => onGuardar({ sesion, ejercicios, descansos, notas })}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
         >
           Guardar

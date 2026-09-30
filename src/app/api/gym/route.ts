@@ -475,21 +475,21 @@ async function getProgresion(db: ReturnType<typeof getDb>, ejercicio: string) {
 }
 
 // ---------- rutina ----------
-// Slots de sesión ordenados, no atados a un día — "Sesión N" es la posición
-// (1-based) en la lista ordenada por `orden`, no un valor guardado.
+// Slots de sesión ordenados, no atados a un día. El orden de la lista viene
+// de `orden`; no hay un número mostrado en la UI.
 
 async function getRutina(db: ReturnType<typeof getDb>) {
   const res = await db.execute(
-    "SELECT id, sesion, ejercicios, descansos FROM routine ORDER BY orden",
+    "SELECT id, sesion, ejercicios, descansos, notas FROM routine ORDER BY orden",
   );
-  return res.rows.map((row, i) => {
+  return res.rows.map((row) => {
     const r = row as Row;
     return {
       id: Number(r.id),
-      numero: i + 1,
       sesion: String(r.sesion),
       ejercicios: String(r.ejercicios),
       descansos: String(r.descansos),
+      notas: String(r.notas),
     };
   });
 }
@@ -498,13 +498,14 @@ async function addRutina(db: ReturnType<typeof getDb>, payload: Record<string, u
   const max = await db.execute("SELECT COALESCE(MAX(orden), 0) AS max FROM routine");
   const orden = Number((max.rows[0] as Row).max) + 1;
   const res = await db.execute({
-    sql: `INSERT INTO routine (orden, sesion, ejercicios, descansos) VALUES (?, ?, ?, ?)
+    sql: `INSERT INTO routine (orden, sesion, ejercicios, descansos, notas) VALUES (?, ?, ?, ?, ?)
           RETURNING id`,
     args: [
       orden,
       String(payload.sesion ?? ""),
       String(payload.ejercicios ?? ""),
       String(payload.descansos ?? ""),
+      String(payload.notas ?? ""),
     ],
   });
   return { id: Number((res.rows[0] as Row).id) };
@@ -514,11 +515,12 @@ async function updateRutina(db: ReturnType<typeof getDb>, payload: Record<string
   const id = Number(payload.id);
   if (!id) throw new Error("Id inválido");
   const res = await db.execute({
-    sql: "UPDATE routine SET sesion = ?, ejercicios = ?, descansos = ? WHERE id = ?",
+    sql: "UPDATE routine SET sesion = ?, ejercicios = ?, descansos = ?, notas = ? WHERE id = ?",
     args: [
       String(payload.sesion ?? ""),
       String(payload.ejercicios ?? ""),
       String(payload.descansos ?? ""),
+      String(payload.notas ?? ""),
       id,
     ],
   });
